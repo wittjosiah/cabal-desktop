@@ -93,14 +93,22 @@ export const setScreenViewHistoryPostion = ({ index }) => (dispatch) => {
 
 export const showChannelBrowser = ({ addr }) => dispatch => {
   const cabalDetails = client.getDetails(addr)
-  const channelsData = Object.values(cabalDetails.channels).map((channel) => {
-    return {
-      joined: channel.joined,
-      memberCount: channel.members.size,
-      name: channel.name,
-      topic: channel.topic
-    }
-  })
+
+  const channels = Object.values(cabalDetails.channels)
+  const sensorChannels = Object.values(cabalDetails.sensorChannels)
+
+  const channelsData =
+   channels
+     .concat(sensorChannels)
+     .map((channel) => {
+       return {
+         joined: channel.joined,
+         memberCount: channel.members.size,
+         name: channel.name,
+         topic: channel.topic
+       }
+     })
+
   dispatch({ type: 'UPDATE_CHANNEL_BROWSER', addr, channelsData })
   dispatch(hideAllModals())
   dispatch({ type: 'SHOW_CHANNEL_BROWSER', addr })
@@ -242,23 +250,29 @@ export const getMessages = ({ addr, channel, amount }, callback) => dispatch => 
   client.focusCabal(addr)
   const cabalDetails = client.getDetails(addr)
   if (client.getChannels().includes(channel)) {
-    client.getMessages({ amount, channel }, (messages) => {
-      messages = messages.map((message) => {
-        const user = dispatch(getUser({ key: message.key }))
-        const { type, timestamp, content } = message.value
-        return enrichMessage({
-          content: content && content.text,
-          key: message.key,
-          message,
-          time: timestamp,
-          type,
-          user
-        })
+    cabalDetails.getSensorMessages().then((data) => {
+      client.getMessages({ amount, channel }, (messages) => {
+        messages =
+          messages
+          .concat(data)
+          .map((message) => {
+            const user = dispatch(getUser({ key: message.key }))
+            const { type, timestamp, content } = message.value
+            return enrichMessage({
+              content: content && content.text,
+              key: message.key,
+              message,
+              time: timestamp,
+              type,
+              user
+            })
+          })
+
+        dispatch({ type: 'UPDATE_CABAL', addr, messages })
+        if (callback) {
+          callback(messages)
+        }
       })
-      dispatch({ type: 'UPDATE_CABAL', addr, messages })
-      if (callback) {
-        callback(messages)
-      }
     })
   }
 }
@@ -537,17 +551,27 @@ const initializeCabal = ({ addr, isNewlyAdded, username, settings }) => async di
   const cabalDetails = isNew ? await client.createCabal() : await client.addCabal(addr)
   addr = cabalDetails.key
 
-  console.log('---> initializeCabal', { addr, settings })
+  useSensorsView(cabalDetails)
+  await useSensorChannelsView(cabalDetails)
+
+  console.log('---> initializeCabal', { addr, settings, cabalDetails })
 
   function initialize () {
+    const sensorChannels = Object.keys(cabalDetails.sensorChannels).sort()
+    const joinedSensorChannels =
+      Object.keys(cabalDetails.sensorChannels)
+        .filter(c => cabalDetails.sensorChannels[c].joined)
+        .sort()
+
     const users = cabalDetails.getUsers()
     const userkey = cabalDetails.getLocalUser().key
     const username = cabalDetails.getLocalName()
-    const channels = cabalDetails.getChannels()
-    const channelsJoined = cabalDetails.getJoinedChannels() || []
+    const channels = cabalDetails.getChannels().concat(sensorChannels)
+    const channelsJoined = (cabalDetails.getJoinedChannels() || []).concat(joinedSensorChannels || [])
     const channelMessagesUnread = getCabalUnreadMessagesCount(cabalDetails)
     const currentChannel = cabalDetails.getCurrentChannel()
     const channelMembers = cabalDetails.getChannelMembers()
+
     dispatch({ type: 'UPDATE_CABAL', initialized: false, addr, channelMessagesUnread, users, userkey, username, channels, channelsJoined, currentChannel, channelMembers })
     dispatch(getMessages({ addr, amount: 1000, channel: currentChannel }))
     dispatch(updateAllsChannelsUnreadCount({ addr, channelMessagesUnread }))
@@ -813,4 +837,253 @@ export const moderationAction = (action, { addr, channel, reason, userKey}) => a
     const users = cabalDetails.getUsers()
     dispatch({ type: 'UPDATE_CABAL', addr, users })
   }, 500)
+}
+
+//////////////////
+// Sensor Views //
+//////////////////
+
+const charwise = require('charwise')
+const collect = require('collect-stream')
+const EventEmitter = require('events').EventEmitter
+const View = require('kappa-view-level')
+const timestamp = require('monotonic-timestamp')
+const readonly = require('read-only-stream')
+const sublevel = require('subleveldown')
+const through = require('through2')
+const xtend = require('xtend')
+
+const { ChannelDetails } = require('../node_modules/cabal-client/src/channel-details')
+
+const SENSORS = 's'
+const SENSOR_CHANNELS = 'sc'
+
+function useSensorsView (cabalDetails) {
+  const cabal = cabalDetails._cabal
+
+  cabal.kcore.use('sensors', createSensorsView(sublevel(cabal.db, SENSORS, { valueEncoding: 'json' })))
+  cabal.sensors = cabal.kcore.api.sensors
+
+  cabalDetails.getSensorMessages = () => {
+    return new Promise((resolve, reject) => {
+      const channel = client.getCurrentChannel()
+      const rs = cabal.sensors.read(channel, { limit: 1000 })
+      collect(rs, (err, msgs) => {
+        if (err) reject(err)
+        resolve(msgs.reverse().map((msg) => {
+          const { deviceId, fields } = msg.value.content
+          msg.value.content.text = JSON.stringify({ deviceId, fields })
+          msg.value.type = "chat/text"
+          return msg
+        }))
+      })
+    })
+  }
+}
+
+async function useSensorChannelsView (cabalDetails) {
+  const cabal = cabalDetails._cabal
+
+  cabal.kcore.use(
+    'sensorChannels',
+    createSensorChannelsView(sublevel(cabal.db, SENSOR_CHANNELS, { valueEncoding: 'json' }))
+  )
+  cabal.sensorChannels = cabal.kcore.api.sensorChannels
+
+  await new Promise((resolve, reject) => {
+    cabal.sensorChannels.get((err, sensorChannels) => {
+      if (err) reject(err)
+
+      cabalDetails.sensorChannels = {}
+
+      sensorChannels.forEach((sensorChannel) => {
+        const details = cabalDetails.sensorChannels[sensorChannel]
+        if (!details) {
+          cabalDetails.sensorChannels[sensorChannels] = new ChannelDetails(cabal, sensorChannel)
+        }
+
+        cabal.sensors.events.on(sensorChannel, cabalDetails.messageListener.bind(cabalDetails))
+      })
+
+      resolve()
+    })
+  })
+}
+
+function createSensorsView (lvl) {
+  const events = new EventEmitter()
+
+  return View(lvl, {
+    map: function (msg) {
+      if (!sanitize(msg)) return []
+      if (!msg.value.timestamp) return []
+
+      // If the data is from <<THE FUTURE>>, index it at _now_.
+      let ts = msg.value.timestamp
+      if (isFutureMonotonicTimestamp(ts)) ts = timestamp()
+
+      if (msg.value.type.startsWith('sensor/') && msg.value.content.channel) {
+        const key = `snsr!${msg.value.content.channel}!${charwise.encode(ts)}`
+
+        return [[key, msg]]
+      } else {
+        return []
+      }
+    },
+
+    indexed: function (msgs) {
+      msgs
+        .filter((msg) => Boolean(sanitize(msg)))
+        .filter(
+          (msg) =>
+            msg.value.type.startsWith('sensor/') && msg.value.content.channel
+        )
+        .sort(cmpMsg)
+        .forEach(function (msg) {
+          events.emit('sensor', msg)
+          events.emit(msg.value.content.channel, msg)
+        })
+    },
+
+    api: {
+      read: function (core, channel, opts) {
+        opts = opts || {}
+
+        const t = through.obj()
+
+        if (opts.gt) {
+          opts.gt = `snsr!${channel}!${charwise.encode(opts.gt)}!`
+        } else {
+          opts.gt = `snsr!${channel}!`
+        }
+
+        if (opts.lt) {
+          opts.lt = `snsr!${channel}!${charwise.encode(opts.lt)}~`
+        } else {
+          opts.lt = `snsr!${channel}~`
+        }
+
+        this.ready(function () {
+          const v = lvl.createValueStream(xtend({ reverse: true }, opts))
+          v.pipe(t)
+        })
+
+        return readonly(t)
+      },
+
+      events: events
+    }
+  })
+}
+
+function createSensorChannelsView (lvl) {
+  const events = new EventEmitter()
+
+  return {
+    maxBatch: 100,
+
+    map: function (msgs, next) {
+      const ops = []
+      const seen = {}
+      let pending = 0
+
+      msgs.forEach(function (msg) {
+        if (!sanitize(msg)) return
+
+        if (msg.value && msg.value.content && msg.value.content.channel) {
+          const channel = msg.value.content.channel
+
+          pending++
+
+          lvl.get('channel!' + channel, function (err) {
+            if (err && err.notFound) {
+              if (!seen[channel]) events.emit('add', channel)
+
+              seen[channel] = true
+
+              ops.push({
+                type: 'put',
+                key: 'channel!' + channel,
+                value: 1
+              })
+            }
+
+            if (!--pending) done()
+          })
+        }
+      })
+
+      if (!pending) done()
+
+      function done () {
+        lvl.batch(ops, next)
+      }
+    },
+
+    api: {
+      get: function (core, cb) {
+        this.ready(function () {
+          const channels = []
+
+          lvl.createKeyStream({
+            gt: 'channel!!',
+            lt: 'channel!~'
+          })
+            .on('data', function (channel) {
+              channels.push(channel.replace('channel!', ''))
+            })
+            .once('end', function () {
+              cb(null, channels)
+            })
+            .once('error', cb)
+        })
+      },
+
+      events: events
+    },
+
+    storeState: function (state, cb) {
+      state = state.toString('base64')
+      lvl.put('state', state, cb)
+    },
+
+    fetchState: function (cb) {
+      lvl.get('state', function (err, state) {
+        if (err && err.notFound) cb()
+        else if (err) cb(err)
+        else cb(null, Buffer.from(state, 'base64'))
+      })
+    }
+  }
+}
+
+function cmpMsg (a, b) {
+  return a.value.timestamp - b.value.timestamp
+}
+
+// Either returns a well-formed sensor message, or null.
+function sanitize (msg) {
+  if (typeof msg !== 'object') return null
+  if (typeof msg.value !== 'object') return null
+  if (typeof msg.value.content !== 'object') return null
+  if (typeof msg.value.timestamp !== 'number') return null
+  if (typeof msg.value.type !== 'string') return null
+  if (typeof msg.value.content.channel !== 'string') return null
+  if (typeof msg.value.content.deviceId !== 'string') return null
+  if (typeof msg.value.content.fields !== 'object') return null
+  return msg
+}
+
+function monotonicTimestampToTimestamp (timestamp) {
+  if (/^[0-9]+\.[0-9]+$/.test(String(timestamp))) {
+    return Number(String(timestamp).split('.')[0])
+  } else {
+    return timestamp
+  }
+}
+
+function isFutureMonotonicTimestamp (ts) {
+  const timestamp = monotonicTimestampToTimestamp(ts)
+  const now = new Date().getTime()
+  return timestamp > now
 }
