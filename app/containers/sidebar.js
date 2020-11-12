@@ -198,8 +198,12 @@ class SidebarScreen extends React.Component {
     const { addr, cabal, settings } = this.props
     const cabalLabel = settings.alias || addr
     const channelsJoined = cabal.channelsJoined?.slice().sort() || []
+    const sensorChannels = cabal.sensorChannels.sort() || []
     const favorites = channelsJoined.filter(channel => (settings['favorite-channels'] || []).includes(channel))
-    const channels = channelsJoined.filter(channel => !favorites.includes(channel))
+    const channels =
+      channelsJoined
+        .filter(channel => !favorites.includes(channel))
+        .filter(channel => !sensorChannels.includes(channel))
     const users = this.sortUsers(Object.values(cabal.users) || [])
     const deduplicatedNicks = this.deduplicatedNicks(users)
     const onlineCount = users.filter(i => !!i.online).length
@@ -246,6 +250,33 @@ class SidebarScreen extends React.Component {
                   </div>
                 </div>
                 {!this.props.settings['sidebar-hide-favorites'] && this.sortByProperty(favorites).map((channel) =>
+                  <div key={channel} onClick={this.selectChannel.bind(this, channel)} className={cabal.channel === channel ? 'collection__item active' : 'collection__item'}>
+                    <div className='collection__item__icon'><img src='static/images/icon-channel.svg' /></div>
+                    <div className='collection__item__content'>{channel}</div>
+                    {this.props.channelMessagesUnread && this.props.channelMessagesUnread[channel] > 0 &&
+                      <div className='collection__item__messagesUnreadCount'>{this.props.channelMessagesUnread[channel]}</div>}
+                    <div className='collection__item__handle' />
+                  </div>
+                )}
+              </div>}
+            {!!sensorChannels.length &&
+              <div className='collection'>
+                <div className='collection__heading'>
+                  <div className='collection__heading__title__container'>
+                    <span
+                      className={`collection__toggle ${this.props.settings['sidebar-hide-sensors'] ? 'collection__toggle__off' : 'collection__toggle__on'}`}
+                      onClick={this.onToggleCollection.bind(this, 'sensors')}
+                    >▼
+                    </span>
+                    <div
+                      className='collection__heading__title'
+                      onClick={this.onToggleCollection.bind(this, 'sensors')}
+                    >
+                      Sensors
+                    </div>
+                  </div>
+                </div>
+                {!this.props.settings['sidebar-hide-sensors'] && this.sortByProperty(sensorChannels).map((channel) =>
                   <div key={channel} onClick={this.selectChannel.bind(this, channel)} className={cabal.channel === channel ? 'collection__item active' : 'collection__item'}>
                     <div className='collection__item__icon'><img src='static/images/icon-channel.svg' /></div>
                     <div className='collection__item__content'>{channel}</div>

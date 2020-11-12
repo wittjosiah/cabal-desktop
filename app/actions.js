@@ -554,25 +554,20 @@ const initializeCabal = ({ addr, isNewlyAdded, username, settings }) => async di
   useSensorsView(cabalDetails)
   await useSensorChannelsView(cabalDetails)
 
-  console.log('---> initializeCabal', { addr, settings, cabalDetails })
+  console.log('---> initializeCabal', { addr, settings })
 
   function initialize () {
-    const sensorChannels = Object.keys(cabalDetails.sensorChannels).sort()
-    const joinedSensorChannels =
-      Object.keys(cabalDetails.sensorChannels)
-        .filter(c => cabalDetails.sensorChannels[c].joined)
-        .sort()
-
     const users = cabalDetails.getUsers()
     const userkey = cabalDetails.getLocalUser().key
     const username = cabalDetails.getLocalName()
-    const channels = cabalDetails.getChannels().concat(sensorChannels)
-    const channelsJoined = (cabalDetails.getJoinedChannels() || []).concat(joinedSensorChannels || [])
+    const channels = cabalDetails.getChannels()
+    const channelsJoined = cabalDetails.getJoinedChannels() || []
     const channelMessagesUnread = getCabalUnreadMessagesCount(cabalDetails)
     const currentChannel = cabalDetails.getCurrentChannel()
     const channelMembers = cabalDetails.getChannelMembers()
+    const sensorChannels = Object.keys(cabalDetails.sensorChannels).sort()
 
-    dispatch({ type: 'UPDATE_CABAL', initialized: false, addr, channelMessagesUnread, users, userkey, username, channels, channelsJoined, currentChannel, channelMembers })
+    dispatch({ type: 'UPDATE_CABAL', initialized: false, addr, channelMessagesUnread, users, userkey, username, channels, channelsJoined, currentChannel, channelMembers, sensorChannels })
     dispatch(getMessages({ addr, amount: 1000, channel: currentChannel }))
     dispatch(updateAllsChannelsUnreadCount({ addr, channelMessagesUnread }))
     client.focusCabal(addr)
