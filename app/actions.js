@@ -897,7 +897,7 @@ async function useSensorChannelsView (cabalDetails) {
           cabalDetails.sensorChannels[sensorChannels] = new ChannelDetails(cabal, sensorChannel)
         }
 
-        cabal.sensors.events.on(sensorChannel, cabalDetails.messageListener.bind(cabalDetails))
+        cabal.sensors.events.on(sensorChannel, messageListener.bind(cabalDetails))
       })
 
       resolve()
@@ -1050,6 +1050,18 @@ function createSensorChannelsView (lvl) {
       })
     }
   }
+}
+
+function messageListener (msg) {
+  const { channel, deviceId, fields } = msg.value.content
+  const message = Object.assign({}, msg)
+  message.value.content.text = JSON.stringify({ deviceId, fields })
+  message.value.type = "chat/text"
+  this._emitUpdate('new-message', {
+    channel,
+    author: { key: message.key, name: message.key, local: false, online: false },
+    message
+  })
 }
 
 function cmpMsg (a, b) {
