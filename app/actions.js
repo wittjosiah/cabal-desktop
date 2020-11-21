@@ -250,29 +250,36 @@ export const getMessages = ({ addr, channel, amount }, callback) => dispatch => 
   client.focusCabal(addr)
   const cabalDetails = client.getDetails(addr)
   if (client.getChannels().includes(channel)) {
-    cabalDetails.getSensorMessages().then((data) => {
-      client.getMessages({ amount, channel }, (messages) => {
-        messages =
-          messages
-          .concat(data)
-          .map((message) => {
-            const user = dispatch(getUser({ key: message.key }))
-            const { type, timestamp, content } = message.value
-            return enrichMessage({
-              content: content && content.text,
-              key: message.key,
-              message,
-              time: timestamp,
-              type,
-              user
-            })
-          })
-
-        dispatch({ type: 'UPDATE_CABAL', addr, messages })
-        if (callback) {
-          callback(messages)
-        }
+    client.getMessages({ amount, channel }, (messages) => {
+      messages = messages.map((message) => {
+        const user = dispatch(getUser({ key: message.key }))
+        const { type, timestamp, content } = message.value
+        return enrichMessage({
+          content: content && content.text,
+          key: message.key,
+          message,
+          time: timestamp,
+          type,
+          user
+        })
       })
+      dispatch({ type: 'UPDATE_CABAL', addr, messages })
+      if (callback) {
+        callback(messages)
+      }
+    })
+  }
+}
+
+export const getSensors = ({ addr, amount, channel }, callback) => dispatch => {
+  client.focusCabal(addr)
+  const cabalDetails = client.getDetails(addr)
+  if (client.getChannels().includes(channel)) {
+    cabalDetails.getSensorMessages({ amount, channel }).then((sensorMessages) => {
+      dispatch({ type: 'UPDATE_CABAL', addr, sensorMessages})
+      if (callback) {
+        callback(sensor_messages)
+      }
     })
   }
 }
@@ -318,6 +325,21 @@ export const onIncomingMessage = ({ addr, channel, message }, callback) => (disp
       channel,
       content: message.value.content
     }))
+  }
+}
+
+export const onIncomingSensor = ({ addr, channel, message }, callback) => (dispatch, getState) => {
+  const cabalDetails = client.getDetails(addr)
+
+  if (!cabalDetails.getJoinedChannels().includes(channel)) return
+
+  const currentChannel = cabalDetails.getCurrentChannel()
+  if ((channel === currentChannel) && (addr === client.getCurrentCabal().key)) {
+    const sensorMessages = [
+      ...getState()?.cabals[addr].sensorMessages,
+      message
+    ]
+    dispatch({ type: 'UPDATE_CABAL', addr, sensorMessages })
   }
 }
 
@@ -370,6 +392,7 @@ export const viewChannel = ({ addr, channel, skipScreenHistory }) => (dispatch, 
     channel: cabalDetails.getCurrentChannel()
   })
   dispatch(getMessages({ addr, channel, amount: 100 }))
+  dispatch(getSensors({ addr, channel, amount: 1000 }))
 
   const topic = cabalDetails.getTopic()
   dispatch({ type: 'UPDATE_TOPIC', addr, topic })
@@ -569,6 +592,7 @@ const initializeCabal = ({ addr, isNewlyAdded, username, settings }) => async di
 
     dispatch({ type: 'UPDATE_CABAL', initialized: false, addr, channelMessagesUnread, users, userkey, username, channels, channelsJoined, currentChannel, channelMembers, sensorChannels })
     dispatch(getMessages({ addr, amount: 1000, channel: currentChannel }))
+    dispatch(getSensors({ addr, amount: 1000, channel: currentChannel }))
     dispatch(updateAllsChannelsUnreadCount({ addr, channelMessagesUnread }))
     client.focusCabal(addr)
     dispatch(viewCabal({ addr, channel: settings.currentChannel }))
@@ -610,6 +634,7 @@ const initializeCabal = ({ addr, isNewlyAdded, username, settings }) => async di
         const currentChannel = cabalDetails.getCurrentChannel()
         dispatch({ type: 'UPDATE_CABAL', addr, channelMembers, channelMessagesUnread, channelsJoined, currentChannel })
         dispatch(getMessages({ addr, amount: 1000, channel: currentChannel }))
+        dispatch(getSensors({ addr, amount: 1000, channel: currentChannel }))
         dispatch(updateAllsChannelsUnreadCount({ addr, channelMessagesUnread }))
         dispatch(viewChannel({ addr, channel: currentChannel }))
       }
@@ -646,6 +671,14 @@ const initializeCabal = ({ addr, isNewlyAdded, username, settings }) => async di
         const channels = cabalDetails.getChannels()
         const channelMembers = cabalDetails.getChannelMembers()
         dispatch({ type: 'UPDATE_CABAL', addr, channels, channelMembers })
+      }
+    }, {
+      name: 'new-sensor',
+      throttleDelay: 500,
+      action: (data) => {
+        const channel = data.channel
+        const message = data.message
+        dispatch(onIncomingSensor({ addr, channel, message }))
       }
     }, {
       name: 'new-message',
@@ -859,18 +892,12 @@ function useSensorsView (cabalDetails) {
   cabal.kcore.use('sensors', createSensorsView(sublevel(cabal.db, SENSORS, { valueEncoding: 'json' })))
   cabal.sensors = cabal.kcore.api.sensors
 
-  cabalDetails.getSensorMessages = () => {
+  cabalDetails.getSensorMessages = ({ amount, channel }) => {
     return new Promise((resolve, reject) => {
-      const channel = client.getCurrentChannel()
-      const rs = cabal.sensors.read(channel, { limit: 1000 })
+      const rs = cabal.sensors.read(channel, { limit: amount })
       collect(rs, (err, msgs) => {
         if (err) reject(err)
-        resolve(msgs.reverse().map((msg) => {
-          const { deviceId, fields } = msg.value.content
-          msg.value.content.text = JSON.stringify({ deviceId, fields })
-          msg.value.type = "chat/text"
-          return msg
-        }))
+        resolve(msgs.reverse())
       })
     })
   }
@@ -1053,14 +1080,10 @@ function createSensorChannelsView (lvl) {
 }
 
 function messageListener (msg) {
-  const { channel, deviceId, fields } = msg.value.content
-  const message = Object.assign({}, msg)
-  message.value.content.text = JSON.stringify({ deviceId, fields })
-  message.value.type = "chat/text"
-  this._emitUpdate('new-message', {
+  const { channel } = msg.value.content
+  this._emitUpdate('new-sensor', {
     channel,
-    author: { key: message.key, name: message.key, local: false, online: false },
-    message
+    message: Object.assign({}, msg)
   })
 }
 

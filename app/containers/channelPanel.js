@@ -1,5 +1,6 @@
 import React from 'react'
 import { connect } from 'react-redux'
+import { ResponsiveLine } from '@nivo/line'
 
 import {
   hideChannelPanel,
@@ -43,9 +44,64 @@ function ChannelPanel (props) {
 
   const canLeave = props.cabal.channel !== '!status'
   const hasMembers = props.cabal.channel !== '!status'
+  const hasSensors = props.cabal.sensorMessages && props.cabal.sensorMessages.length > 0
+
+  const groupedData = props.cabal.sensorMessages.reduce((acc, msg) => {
+    const point = msg.value.content
+
+    for (const field in point.fields) {
+      const fieldData = acc[field] || {}
+      const points = fieldData[point.deviceId] || []
+      points.unshift({ x: new Date(msg.value.timestamp), y: point.fields[field] })
+      fieldData[point.deviceId] = points
+      acc[field] = fieldData
+    }
+
+    return acc
+  }, {})
+
+  const charts = []
+  for (const field in groupedData) {
+    const data = []
+    for (const device in groupedData[field]) {
+      data.push({ id: device, data: groupedData[field][device] })
+    }
+    charts.push(
+      <div className="panel__content data" key={field}>
+        <ResponsiveLine
+          data={data}
+          width={900}
+          height={400}
+          margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          animate={true}
+          xScale={{
+            type: 'time',
+            format: 'native',
+          }}
+          yScale={{
+            type: 'linear',
+            stacked: false,
+          }}
+          axisBottom={{
+            tickValues: "every 1 hour",
+            tickSize: 5,
+            tickPadding: 5,
+            tickRotation: 0,
+            format: "%S.%L",
+            legend: "Time",
+            legendOffset: 36,
+            legendPosition: "middle"
+          }}
+          enableSlices={false}
+        />
+      </div>
+    )
+  }
+
+  const className=`panel ChannelPanel${hasSensors ? ' DataPanel' : ''}`
 
   return (
-    <div className='panel ChannelPanel'>
+    <div className={className}>
       <div className='panel__header'>
         Channel Details
         <span onClick={() => props.hideChannelPanel({ addr: props.addr })} className='close'><img src='static/images/icon-composermeta.svg' /></span>
@@ -67,6 +123,13 @@ function ChannelPanel (props) {
             <MemberList addr={props.addr} />
           </div>
         </>}
+      {hasSensors &&
+       <>
+         <div className='section__header'>
+           Channel Data
+         </div>
+         {charts}
+       </>}
     </div>
   )
 }
