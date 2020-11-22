@@ -70,28 +70,34 @@ function ChannelPanel (props) {
       <div className="panel__content data" key={field}>
         <ResponsiveLine
           data={data}
-          width={900}
-          height={400}
-          margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          width={500}
+          height={300}
+          margin={{ top: 10, right: 10, bottom: 80, left: 80 }}
           animate={true}
+          colors={['rgba(105, 58, 250)']}
+          curve="monotoneX"
           xScale={{
             type: 'time',
             format: 'native',
           }}
+          xFormat="time:%H:%M:%S"
           yScale={{
             type: 'linear',
             stacked: false,
           }}
+          axisLeft={{
+            legend: field,
+            legendOffset: -36,
+            legendPosition: 'middle',
+          }}
           axisBottom={{
-            tickValues: "every 1 hour",
+            tickValues: 10,
             tickSize: 5,
             tickPadding: 5,
-            tickRotation: 0,
-            format: "%S.%L",
-            legend: "Time",
-            legendOffset: 36,
-            legendPosition: "middle"
+            tickRotation: -45,
+            format: '%b %d %H:%M',
           }}
+          useMesh={true}
           enableSlices={false}
         />
       </div>
