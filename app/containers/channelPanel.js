@@ -42,67 +42,48 @@ function ChannelPanel (props) {
     })
   }
 
+  const sensorMessages = props.cabal.sensorMessages
+
   const canLeave = props.cabal.channel !== '!status'
   const hasMembers = props.cabal.channel !== '!status'
-  const hasSensors = props.cabal.sensorMessages && props.cabal.sensorMessages.length > 0
+  const hasSensors = sensorMessages && Object.keys(sensorMessages).length > 0
 
-  const groupedData = props.cabal.sensorMessages.reduce((acc, msg) => {
-    const point = msg.value.content
-
-    for (const field in point.fields) {
-      const fieldData = acc[field] || {}
-      const points = fieldData[point.deviceId] || []
-      points.unshift({ x: new Date(msg.value.timestamp), y: point.fields[field] })
-      fieldData[point.deviceId] = points
-      acc[field] = fieldData
-    }
-
-    return acc
-  }, {})
-
-  const charts = []
-  for (const field in groupedData) {
-    const data = []
-    for (const device in groupedData[field]) {
-      data.push({ id: device, data: groupedData[field][device] })
-    }
-    charts.push(
-      <div className="panel__content data" key={field}>
-        <ResponsiveLine
-          data={data}
-          width={500}
-          height={300}
-          margin={{ top: 10, right: 10, bottom: 80, left: 80 }}
-          animate={true}
-          colors={['rgba(105, 58, 250)']}
-          curve="monotoneX"
-          xScale={{
-            type: 'time',
-            format: 'native',
-          }}
-          xFormat="time:%H:%M:%S"
-          yScale={{
-            type: 'linear',
-            stacked: false,
-          }}
-          axisLeft={{
-            legend: field,
-            legendOffset: -36,
-            legendPosition: 'middle',
-          }}
-          axisBottom={{
-            tickValues: 10,
-            tickSize: 5,
-            tickPadding: 5,
-            tickRotation: -45,
-            format: '%b %d %H:%M',
-          }}
-          useMesh={true}
-          enableSlices={false}
-        />
-      </div>
-    )
-  }
+  const charts = Object.keys(sensorMessages).map((field) =>
+    <div className="panel__content data" key={field}>
+      <ResponsiveLine
+        data={sensorMessages[field]}
+        width={500}
+        height={300}
+        margin={{ top: 10, right: 10, bottom: 80, left: 80 }}
+        animate={true}
+        colors={['rgba(105, 58, 250)']}
+        curve="monotoneX"
+        xScale={{
+          type: 'time',
+          format: 'native',
+        }}
+        xFormat="time:%H:%M:%S"
+        yScale={{
+          type: 'linear',
+          stacked: false,
+        }}
+        axisLeft={{
+          legend: field,
+          legendOffset: -36,
+          legendPosition: 'middle',
+        }}
+        axisBottom={{
+          tickValues: 10,
+          tickSize: 5,
+          tickPadding: 5,
+          tickRotation: -45,
+          format: '%b %d %H:%M',
+        }}
+        useMesh={true}
+        enableSlices={false}
+      />
+    </div>
+  )
 
   const className=`panel ChannelPanel${hasSensors ? ' DataPanel' : ''}`
 

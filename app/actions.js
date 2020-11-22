@@ -276,9 +276,33 @@ export const getSensors = ({ addr, amount, channel }, callback) => dispatch => {
   const cabalDetails = client.getDetails(addr)
   if (client.getChannels().includes(channel)) {
     cabalDetails.getSensorMessages({ amount, channel }).then((sensorMessages) => {
-      dispatch({ type: 'UPDATE_CABAL', addr, sensorMessages})
+      const groupedMessages = sensorMessages.reduce((acc, msg) => {
+        const point = msg.value.content
+
+        for (const field in point.fields) {
+          const fieldData = acc[field] || {}
+          const points = fieldData[point.deviceId] || []
+          points.unshift({ x: new Date(msg.value.timestamp), y: point.fields[field] })
+          fieldData[point.deviceId] = points
+          acc[field] = fieldData
+        }
+
+        return acc
+      }, {})
+
+      const parsedMessages = {}
+      for (const field in groupedMessages) {
+        const data = []
+        for (const device in groupedMessages[field]) {
+          data.push({ id: device, data: groupedMessages[field][device] })
+        }
+        parsedMessages[field] = data
+      }
+
+      dispatch({ type: 'UPDATE_CABAL', addr, sensorMessages: parsedMessages})
+
       if (callback) {
-        callback(sensor_messages)
+        callback(parsedMessages)
       }
     })
   }
@@ -334,11 +358,23 @@ export const onIncomingSensor = ({ addr, channel, message }, callback) => (dispa
   if (!cabalDetails.getJoinedChannels().includes(channel)) return
 
   const currentChannel = cabalDetails.getCurrentChannel()
+
   if ((channel === currentChannel) && (addr === client.getCurrentCabal().key)) {
-    const sensorMessages = [
-      ...getState()?.cabals[addr].sensorMessages,
-      message
-    ]
+    const sensorMessages = getState()?.cabals[addr].sensorMessages
+    const { deviceId, fields } = message.value.content
+    const timestamp = message.value.timestamp
+
+    for (const field in fields) {
+      const deviceMessages = sensorMessages[field].find(({ id }) => id === deviceId)
+      const point = { x: new Date(timestamp), y: fields[field] }
+
+      if (deviceMessages) {
+        deviceMessages.data.unshift(point)
+      } else {
+        sensorMessages[field].push({ id: deviceId, data: [point] })
+      }
+    }
+
     dispatch({ type: 'UPDATE_CABAL', addr, sensorMessages })
   }
 }
