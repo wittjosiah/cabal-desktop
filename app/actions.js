@@ -702,6 +702,12 @@ const initializeCabal = ({ addr, isNewlyAdded, username, settings }) => async di
       name: 'init',
       action: initialize
     }, {
+      name: 'new-sensor-channel',
+      action: () => {
+        const sensorChannels = Object.keys(cabalDetails.sensorChannels).sort()
+        dispatch({ type: 'UPDATE_CABAL', addr, sensorChannels })
+      }
+    }, {
       name: 'new-channel',
       action: () => {
         const channels = cabalDetails.getChannels()
@@ -947,6 +953,15 @@ async function useSensorChannelsView (cabalDetails) {
     createSensorChannelsView(sublevel(cabal.db, SENSOR_CHANNELS, { valueEncoding: 'json' }))
   )
   cabal.sensorChannels = cabal.kcore.api.sensorChannels
+
+  cabalDetails.registerListener(cabal.sensorChannels.events, 'add', (sensorChannel) => {
+    const details = cabalDetails.sensorChannels[sensorChannel]
+    if (!details) {
+      cabalDetails.sensorChannels[sensorChannel] = new ChannelDetails(cabal, sensorChannel)
+    }
+    cabal.sensors.events.on(sensorChannel, messageListener.bind(cabalDetails))
+    cabalDetails._emitUpdate('new-sensor-channel', { sensorChannel })
+  })
 
   await new Promise((resolve, reject) => {
     cabal.sensorChannels.get((err, sensorChannels) => {
