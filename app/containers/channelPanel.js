@@ -42,48 +42,58 @@ function ChannelPanel (props) {
     })
   }
 
+  function trimData ({ id, data }) {
+    return {
+      id,
+      data: data.slice(0, 50),
+    }
+  }
+
   const sensorMessages = props.cabal.sensorMessages
 
   const canLeave = props.cabal.channel !== '!status'
   const hasMembers = props.cabal.channel !== '!status'
   const hasSensors = sensorMessages && Object.keys(sensorMessages).length > 0
 
-  const charts = Object.keys(sensorMessages).map((field) =>
-    <div className="panel__content data" key={field}>
-      <ResponsiveLine
-        data={sensorMessages[field]}
-        width={500}
-        height={300}
-        margin={{ top: 10, right: 10, bottom: 80, left: 80 }}
-        animate={true}
-        colors={['rgba(105, 58, 250)']}
-        curve="monotoneX"
-        xScale={{
-          type: 'time',
-          format: 'native',
-        }}
-        xFormat="time:%H:%M:%S"
-        yScale={{
-          type: 'linear',
-          stacked: false,
-        }}
-        axisLeft={{
-          legend: field,
-          legendOffset: -36,
-          legendPosition: 'middle',
-        }}
-        axisBottom={{
-          tickValues: 10,
-          tickSize: 5,
-          tickPadding: 5,
-          tickRotation: -45,
-          format: '%b %d %H:%M',
-        }}
-        useMesh={true}
-        enableSlices={false}
-      />
-    </div>
-  )
+  const charts = Object.keys(sensorMessages).map((field) => {
+    const data = sensorMessages[field].map(trimData)
+    return (
+      <div className="panel__content data" key={field}>
+        <ResponsiveLine
+          data={data}
+          width={500}
+          height={300}
+          margin={{ top: 10, right: 10, bottom: 80, left: 80 }}
+          animate={true}
+          colors={['rgba(105, 58, 250)']}
+          curve="monotoneX"
+          xScale={{
+            type: 'time',
+            format: 'native',
+          }}
+          xFormat="time:%H:%M:%S"
+          yScale={{
+            type: 'linear',
+            stacked: false,
+          }}
+          axisLeft={{
+            legend: field,
+            legendOffset: -36,
+            legendPosition: 'middle',
+          }}
+          axisBottom={{
+            tickValues: 10,
+            tickSize: 5,
+            tickPadding: 5,
+            tickRotation: -45,
+            format: '%b %d %H:%M',
+          }}
+          useMesh={true}
+          enableSlices={false}
+        />
+      </div>
+    )
+  })
 
   const className=`panel ChannelPanel${hasSensors ? ' DataPanel' : ''}`
 

@@ -428,7 +428,7 @@ export const viewChannel = ({ addr, channel, skipScreenHistory }) => (dispatch, 
     channel: cabalDetails.getCurrentChannel()
   })
   dispatch(getMessages({ addr, channel, amount: 100 }))
-  dispatch(getSensors({ addr, channel, amount: 1000 }))
+  dispatch(getSensors({ addr, channel, amount: 50 }))
 
   const topic = cabalDetails.getTopic()
   dispatch({ type: 'UPDATE_TOPIC', addr, topic })
@@ -628,7 +628,7 @@ const initializeCabal = ({ addr, isNewlyAdded, username, settings }) => async di
 
     dispatch({ type: 'UPDATE_CABAL', initialized: false, addr, channelMessagesUnread, users, userkey, username, channels, channelsJoined, currentChannel, channelMembers, sensorChannels })
     dispatch(getMessages({ addr, amount: 1000, channel: currentChannel }))
-    dispatch(getSensors({ addr, amount: 1000, channel: currentChannel }))
+    dispatch(getSensors({ addr, amount: 50, channel: currentChannel }))
     dispatch(updateAllsChannelsUnreadCount({ addr, channelMessagesUnread }))
     client.focusCabal(addr)
     dispatch(viewCabal({ addr, channel: settings.currentChannel }))
@@ -670,7 +670,7 @@ const initializeCabal = ({ addr, isNewlyAdded, username, settings }) => async di
         const currentChannel = cabalDetails.getCurrentChannel()
         dispatch({ type: 'UPDATE_CABAL', addr, channelMembers, channelMessagesUnread, channelsJoined, currentChannel })
         dispatch(getMessages({ addr, amount: 1000, channel: currentChannel }))
-        dispatch(getSensors({ addr, amount: 1000, channel: currentChannel }))
+        dispatch(getSensors({ addr, amount: 50, channel: currentChannel }))
         dispatch(updateAllsChannelsUnreadCount({ addr, channelMessagesUnread }))
         dispatch(viewChannel({ addr, channel: currentChannel }))
       }
