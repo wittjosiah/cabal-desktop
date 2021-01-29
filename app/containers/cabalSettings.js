@@ -19,6 +19,22 @@ const mapDispatchToProps = dispatch => ({
 })
 
 class CabalSettingsContainer extends React.Component {
+  // return the most suitable moderation key.
+  // if we don't have one set, default to the current user's key.
+  // if we have joined via multiple keys, pick the first admin key.
+  // if we don't have any admin keys, but we do have a mod key, use that instead
+  // only return one, due to excessively long keys ':)
+  getModerationKey () {
+    const { moderationKeys, userkey } = this.props.cabal || {}
+    let moderationKey = userkey ? `?admin=${userkey}` : ''
+    if (moderationKeys && moderationKeys.length > 0) {
+      // if admin key is set, it will be at the top. otherwise we'll set a mod key
+      const key = this.props.moderationKeys[0]
+      moderationKey = `?${key.type}=${key.key}`
+    }
+    return moderationKey
+  }
+
   onClickCloseSettings () {
     this.props.hideCabalSettings()
   }
@@ -66,7 +82,7 @@ class CabalSettingsContainer extends React.Component {
                   <div className='cabal-settings__item-label-description'>Share this key with others to let them join the cabal.</div>
                 </div>
                 <div className='cabal-settings__item-input cabalKey'>
-                  <input type='text' value={`cabal://${this.props.cabal.addr}`} readOnly />
+                  <input type='text' value={`cabal://${this.props.cabal.addr}${this.getModerationKey()}`} readOnly />
                   <button
                     className='button invite'
                     onClick={this.onClickCopyCode.bind(this)}

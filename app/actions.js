@@ -348,6 +348,7 @@ export const viewChannel = ({ addr, channel, skipScreenHistory }) => (dispatch, 
 
   const cabalDetails = client.getCurrentCabal()
   const channelMessagesUnread = getCabalUnreadMessagesCount(cabalDetails)
+  const moderationKeys = cabalDetails.core.adminKeys.concat(cabalDetails.core.modKeys)
 
   dispatch(hideAllModals())
   dispatch({
@@ -356,6 +357,7 @@ export const viewChannel = ({ addr, channel, skipScreenHistory }) => (dispatch, 
     channels: cabalDetails.getChannels(),
     channelsJoined: cabalDetails.getJoinedChannels(),
     channelMessagesUnread,
+    moderationKeys,
     type: 'ADD_CABAL',
     username: cabalDetails.getLocalName(),
     users: cabalDetails.getUsers()
