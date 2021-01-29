@@ -20,7 +20,7 @@ import MessagesContainer from './messages'
 import { currentChannelMemberCountSelector } from '../selectors'
 
 const mapStateToProps = state => {
-  const cabal = state.cabals[state.currentCabal]
+  const cabal = state.cabals[state.currentCabal] || {}
   const addr = cabal.addr
   return {
     addr,

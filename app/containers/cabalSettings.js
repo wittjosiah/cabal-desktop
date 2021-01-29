@@ -5,7 +5,7 @@ import { clipboard } from 'electron'
 import { hideCabalSettings, removeCabal, saveCabalSettings } from '../actions'
 
 const mapStateToProps = state => {
-  var cabal = state.cabals[state.currentCabal]
+  const cabal = state.cabals[state.currentCabal] || {}
   return {
     cabal,
     settings: state.cabalSettings[cabal.addr] || {}
@@ -42,6 +42,7 @@ class CabalSettingsContainer extends React.Component {
 
   render () {
     const { enableNotifications, alias } = this.props.settings || {}
+    const { addr } = this.props.cabal || {}
 
     return (
       <div className='client__main'>
@@ -66,7 +67,7 @@ class CabalSettingsContainer extends React.Component {
                   <div className='cabal-settings__item-label-description'>Share this key with others to let them join the cabal.</div>
                 </div>
                 <div className='cabal-settings__item-input cabalKey'>
-                  <input type='text' value={`cabal://${this.props.cabal.addr}`} readOnly />
+                  <input type='text' value={`cabal://${addr}`} readOnly />
                   <button
                     className='button invite'
                     onClick={this.onClickCopyCode.bind(this)}
@@ -81,7 +82,7 @@ class CabalSettingsContainer extends React.Component {
                   <div className='cabal-settings__item-label-description'>Set a local name for this cabal. Only you can see this.</div>
                 </div>
                 <div className='cabal-settings__item-input'>
-                  <input type='text' placeholder='My Favorite Cabal' value={alias} onChange={(e) => this.props.saveCabalSettings({ addr: this.props.cabal.addr, settings: { ...this.props.settings, alias: e.target.value } })} />
+                  <input type='text' placeholder='My Favorite Cabal' value={alias || ''} onChange={(e) => this.props.saveCabalSettings({ addr, settings: { ...this.props.settings, alias: e.target.value } })} />
                 </div>
               </div>
               <div className='cabal-settings__item' onClick={this.onToggleOption.bind(this, 'enableNotifications')}>
@@ -100,9 +101,11 @@ class CabalSettingsContainer extends React.Component {
                   <div className='cabal-settings__item-label-title'>Remove this cabal from this Cabal Desktop client</div>
                   <div className='cabal-settings__item-label-description'>The local cabal database will remain and may also exist on peer clients.</div>
                 </div>
-                <div className='cabal-settings__item-input'>
-                  <button className='button' onClick={this.removeCabal.bind(this, this.props.cabal.addr)}>Remove Cabal ({this.props.cabal.addr.substr(0, 8)}...)</button>
-                </div>
+                {addr && 
+                  <div className='cabal-settings__item-input'>
+                    <button className='button' onClick={this.removeCabal.bind(this, addr)}>Remove Cabal ({addr.substr(0, 8)}...)</button>
+                  </div>
+                }
               </div>
             </div>
           </div>

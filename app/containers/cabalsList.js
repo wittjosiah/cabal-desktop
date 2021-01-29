@@ -4,7 +4,7 @@ import { connect } from 'react-redux'
 import { viewCabal, changeScreen } from '../actions'
 
 const mapStateToProps = state => {
-  const cabal = state.cabals[state.currentCabal]
+  const cabal = state.cabals[state.currentCabal] || {}
   const addr = cabal.addr
   return {
     addr,

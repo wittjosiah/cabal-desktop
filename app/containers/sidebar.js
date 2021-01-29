@@ -18,7 +18,7 @@ import {
 import Avatar from './avatar'
 
 const mapStateToProps = state => {
-  const cabal = state.cabals[state.currentCabal]
+  const cabal = state.cabals[state.currentCabal] || {}
   const addr = cabal.addr
   return {
     addr,
@@ -200,7 +200,7 @@ class SidebarScreen extends React.Component {
     const channelsJoined = cabal.channelsJoined?.slice().sort() || []
     const favorites = channelsJoined.filter(channel => (settings['favorite-channels'] || []).includes(channel))
     const channels = channelsJoined.filter(channel => !favorites.includes(channel))
-    const users = this.sortUsers(Object.values(cabal.users) || [])
+    const users = this.sortUsers(Object.values(cabal.users || {}))
     const deduplicatedNicks = this.deduplicatedNicks(users)
     const onlineCount = users.filter(i => !!i.online).length
     const userkey = cabal.userkey
